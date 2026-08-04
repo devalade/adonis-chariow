@@ -1,7 +1,7 @@
 import { BaseCommand } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 
-import { ChariowUnauthorizedError } from '../src/errors.ts'
+import { ChariowUnauthorized } from '../src/failures.ts'
 
 /**
  * Confirms the configured API key reaches the right store.
@@ -26,7 +26,7 @@ export default class ChariowCheck extends BaseCommand {
           : 'No published products yet'
       )
     } catch (error) {
-      if (error instanceof ChariowUnauthorizedError) {
+      if (error instanceof ChariowUnauthorized) {
         this.logger.error('Chariow rejected the API key.')
         this.logger.info('Generate or check it at https://app.chariow.com/settings/api')
         this.exitCode = 1

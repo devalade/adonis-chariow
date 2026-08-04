@@ -1,3 +1,5 @@
+import { redact, Redacted } from './redacted.ts'
+
 /**
  * Remembers which Pulse deliveries have already been processed, so a retry
  * does not run your handler twice. Provide your own to share the state across
@@ -8,12 +10,19 @@ export type PulseDedupeStore = {
   remember(deliveryId: string): Promise<void> | void
 }
 
+/**
+ * Reads the current time in milliseconds. Injected rather than read from the
+ * ambient clock so cache and de-duplication windows are testable.
+ */
+export type Clock = () => number
+
+/** Configuration accepted from `config/chariow.ts`. */
 export type ChariowConfig = {
   /**
    * Store API key, e.g. sk_live_… Server-side only — never ship it to a
    * browser or a mobile app.
    */
-  apiKey: string
+  readonly apiKey: string | Redacted<string>
 
   /**
    * Pulse signing secret, e.g. whsec_… This is NOT your API key: find it under
@@ -22,54 +31,55 @@ export type ChariowConfig = {
    * Pass a record keyed by Pulse ID when several Pulses post to the same
    * endpoint; the secret is then resolved from the `x-pulse-id` header.
    */
-  pulseSecret?: string | Record<string, string>
+  readonly pulseSecret?: string | Redacted<string> | Readonly<Record<string, string>>
 
   /** @default 'https://api.chariow.com/v1' */
-  baseUrl?: string
+  readonly baseUrl?: string
 
   /** Request deadline in milliseconds. @default 15000 */
-  timeout?: number
+  readonly timeout?: number
 
   /**
    * Retry attempts after a 429 or 5xx, for reads only. Checkout is never
    * retried, since a retried checkout is a duplicate sale. @default 2
    */
-  retries?: number
+  readonly retries?: number
 
-  /**
-   * Default `payment_currency` for checkouts that do not set one, e.g. 'XOF'.
-   */
-  currency?: string
+  /** Default `payment_currency` for checkouts that do not set one, e.g. 'XOF'. */
+  readonly currency?: string
 
   /**
    * How long a license lookup stays cached, in milliseconds. The API allows
    * 100 requests per minute, so checking on every request would throttle a
    * live app. Set to 0 to disable. @default 60000
    */
-  licenseCacheTtl?: number
+  readonly licenseCacheTtl?: number
 
   /**
    * Pulse delivery de-duplication. Defaults to an in-memory store; set to
    * false to disable, or pass your own for cross-process de-duplication.
    */
-  dedupe?: false | PulseDedupeStore
+  readonly dedupe?: false | PulseDedupeStore
 
-  /**
-   * Overrides the global fetch. This is the seam tests use.
-   */
-  fetch?: typeof globalThis.fetch
+  /** Overrides the global fetch. This is the seam tests use. */
+  readonly fetch?: typeof globalThis.fetch
+
+  /** Overrides the clock. This is the seam time-dependent tests use. */
+  readonly now?: Clock
 }
 
+/** Configuration with defaults applied and secrets wrapped. */
 export type ResolvedChariowConfig = {
-  apiKey: string
-  pulseSecret: string | Record<string, string> | null
-  baseUrl: string
-  timeout: number
-  retries: number
-  currency: string | null
-  licenseCacheTtl: number
-  dedupe: false | PulseDedupeStore | null
-  fetch: typeof globalThis.fetch | null
+  readonly apiKey: Redacted<string>
+  readonly pulseSecret: Redacted<string> | Readonly<Record<string, Redacted<string>>> | null
+  readonly baseUrl: string
+  readonly timeout: number
+  readonly retries: number
+  readonly currency: string | null
+  readonly licenseCacheTtl: number
+  readonly dedupe: false | PulseDedupeStore | null
+  readonly fetch: typeof globalThis.fetch | null
+  readonly now: Clock
 }
 
 const DEFAULTS = {
@@ -87,19 +97,47 @@ export function defineConfig(config: ChariowConfig): ChariowConfig {
 }
 
 /**
- * Applies defaults and fails loudly on a missing API key, which is otherwise
- * a confusing 401 at the first call.
+ * Wraps every configured Pulse secret, keeping the single-secret and
+ * per-Pulse-secret forms apart.
+ */
+function resolvePulseSecret(
+  configured: ChariowConfig['pulseSecret']
+): ResolvedChariowConfig['pulseSecret'] {
+  if (configured === undefined || configured === '') {
+    return null
+  }
+
+  if (typeof configured === 'string' || configured instanceof Redacted) {
+    return redact(configured)
+  }
+
+  const byPulseId: Record<string, Redacted<string>> = {}
+  for (const [pulseId, secret] of Object.entries(configured)) {
+    byPulseId[pulseId] = redact(secret)
+  }
+
+  return byPulseId
+}
+
+/**
+ * Applies defaults, wraps secrets, and fails loudly on a missing API key —
+ * which is otherwise a confusing 401 at the first call.
+ *
+ * @throws {Error} When no API key is configured. A missing key is a startup
+ * defect, not an expected failure.
  */
 export function resolveConfig(config: ChariowConfig): ResolvedChariowConfig {
-  if (!config.apiKey) {
+  const apiKey = redact(typeof config.apiKey === 'string' ? config.apiKey : config.apiKey.reveal())
+
+  if (apiKey.reveal() === '') {
     throw new Error(
       'Missing Chariow API key. Set CHARIOW_API_KEY in your .env — generate one at https://app.chariow.com/settings/api'
     )
   }
 
   return {
-    apiKey: config.apiKey,
-    pulseSecret: config.pulseSecret ?? null,
+    apiKey,
+    pulseSecret: resolvePulseSecret(config.pulseSecret),
     baseUrl: (config.baseUrl ?? DEFAULTS.baseUrl).replace(/\/+$/, ''),
     timeout: config.timeout ?? DEFAULTS.timeout,
     retries: config.retries ?? DEFAULTS.retries,
@@ -107,5 +145,6 @@ export function resolveConfig(config: ChariowConfig): ResolvedChariowConfig {
     licenseCacheTtl: config.licenseCacheTtl ?? DEFAULTS.licenseCacheTtl,
     dedupe: config.dedupe ?? null,
     fetch: config.fetch ?? null,
+    now: config.now ?? Date.now,
   }
 }

@@ -1,36 +1,75 @@
+import { Result } from 'better-result'
 import type { HttpContext } from '@adonisjs/core/http'
+import { z } from 'zod'
 
 import { ChariowClient, type QueryParams } from './client.ts'
-import { resolveConfig, type ChariowConfig, type ResolvedChariowConfig } from './define_config.ts'
-import { ChariowNotFoundError } from './errors.ts'
+import {
+  resolveConfig,
+  type ChariowConfig,
+  type ResolvedChariowConfig,
+} from './define_config.ts'
+import { ChariowNotFound, type ChariowApiFailure } from './failures.ts'
+import { decideLicenseAccess, LICENSE_NOT_FOUND, type LicenseCheck } from './license_access.ts'
 import { PulsesResource } from './pulses.ts'
-import type {
-  Activation,
-  Affiliate,
-  AffiliateInvitation,
-  CheckoutPayload,
-  CheckoutResult,
-  Customer,
-  CustomerListParams,
-  Discount,
-  DiscountListParams,
-  License,
-  LicenseCheck,
-  LicenseListParams,
-  ListParams,
-  Page,
-  Product,
-  ProductListParams,
-  SaleDetail,
-  SaleListParams,
-  SaleSummary,
-  Store,
-} from './types.ts'
+import {
+  ActivationSchema,
+  AffiliateInvitationSchema,
+  AffiliateSchema,
+  CheckoutPayloadSchema,
+  CheckoutResultSchema,
+  CustomerSchema,
+  DiscountSchema,
+  LicenseSchema,
+  pageOf,
+  ProductSchema,
+  SaleDetailSchema,
+  SaleSummarySchema,
+  StoreSchema,
+  type Activation,
+  type Affiliate,
+  type AffiliateInvitation,
+  type CheckoutPayload,
+  type CheckoutResult,
+  type Customer,
+  type CustomerListParams,
+  type Discount,
+  type DiscountListParams,
+  type License,
+  type LicenseListParams,
+  type ListParams,
+  type Page,
+  type Product,
+  type ProductListParams,
+  type SaleDetail,
+  type SaleListParams,
+  type SaleSummary,
+  type Store,
+} from './schemas.ts'
 
-type CacheEntry = { license: License; expiresAt: number }
+type CacheEntry = { readonly license: License; readonly expiresAt: number }
+
+/**
+ * Unwraps a result at the AdonisJS-facing seam, throwing the failure so the
+ * framework's exception handler renders it with the right status.
+ *
+ * @template T - The success value.
+ */
+function orThrow<T>(result: Result<T, ChariowApiFailure>): T {
+  if (Result.isError(result)) {
+    throw result.error
+  }
+
+  return result.value
+}
 
 /**
  * The Chariow API, wired for AdonisJS.
+ *
+ * Every method throws its expected failure rather than returning it, because
+ * that is what AdonisJS controllers expect: the failures carry `status` and
+ * `code`, so the framework's exception handler turns them into the right HTTP
+ * response. {@link Chariow.client} exposes the same calls as typed results for
+ * callers who would rather branch than catch.
  *
  * ```ts
  * import chariow from '@devalade/adonis-chariow/services/main'
@@ -40,13 +79,13 @@ type CacheEntry = { license: License; expiresAt: number }
  * ```
  */
 export class Chariow {
-  #client: ChariowClient
-  #config: ResolvedChariowConfig
-  #licenseCache = new Map<string, CacheEntry>()
+  readonly #client: ChariowClient
+  readonly #config: ResolvedChariowConfig
+  readonly #licenseCache = new Map<string, CacheEntry>()
 
   /**
-   * Direct access to the HTTP layer, for endpoints this package does not
-   * wrap yet.
+   * The underlying HTTP adapter. Its methods return typed results instead of
+   * throwing, and it reaches endpoints this facade does not wrap yet.
    */
   get client(): ChariowClient {
     return this.#client
@@ -64,8 +103,11 @@ export class Chariow {
   |--------------------------------------------------------------------------
   */
 
-  store = {
-    get: (): Promise<Store> => this.#client.get<Store>('/store'),
+  /** The store this API key belongs to. */
+  readonly store = {
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    get: async (): Promise<Store> =>
+      orThrow(await this.#client.get('/store', { operation: 'getStore', schema: StoreSchema })),
   }
 
   /*
@@ -74,18 +116,34 @@ export class Chariow {
   |--------------------------------------------------------------------------
   */
 
-  products = {
-    list: (params: ProductListParams = {}): Promise<Page<Product>> =>
-      this.#client.get<Page<Product>>('/products', { ...params }),
+  /** Published products. */
+  readonly products = {
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    list: async (params: ProductListParams = {}): Promise<Page<Product>> =>
+      orThrow(
+        await this.#client.get('/products', {
+          operation: 'listProducts',
+          schema: pageOf(ProductSchema),
+          query: { ...params },
+        })
+      ),
 
     /**
      * Accepts a product public ID or its slug.
+     *
+     * @throws {Error} A {@link ChariowApiFailure} when the call fails.
      */
-    get: (idOrSlug: string): Promise<Product> =>
-      this.#client.get<Product>(`/products/${encodeURIComponent(idOrSlug)}`),
+    get: async (idOrSlug: string): Promise<Product> =>
+      orThrow(
+        await this.#client.get(`/products/${encodeURIComponent(idOrSlug)}`, {
+          operation: 'getProduct',
+          schema: ProductSchema,
+        })
+      ),
 
+    /** Walks every page. @throws {Error} A {@link ChariowApiFailure} when a page fails. */
     all: (params: ProductListParams = {}): AsyncIterable<Product> =>
-      this.#paginate<Product>('/products', params),
+      this.#paginate('/products', 'listProducts', ProductSchema, params),
   }
 
   /*
@@ -94,7 +152,8 @@ export class Chariow {
   |--------------------------------------------------------------------------
   */
 
-  checkout = {
+  /** Starting a paid checkout. */
+  readonly checkout = {
     /**
      * Starts a checkout and returns the payment URL to redirect the buyer to.
      *
@@ -111,24 +170,33 @@ export class Chariow {
      *   phone: { number: '97000000', country_code: '+229' },
      * }, ctx)
      *
-     * return response.redirect(result.payment.checkout_url!)
+     * return response.redirect(result.payment.checkout_url)
      * ```
+     *
+     * @throws {Error} A {@link ChariowApiFailure} when the call fails, or a
+     * `ZodError` when the payload is malformed — a defect in your own code,
+     * caught here rather than as a 422 round trip.
      */
-    create: (payload: CheckoutPayload, ctx?: HttpContext): Promise<CheckoutResult> => {
-      const body: CheckoutPayload = { ...payload }
+    create: async (payload: CheckoutPayload, ctx?: HttpContext): Promise<CheckoutResult> => {
+      const body = CheckoutPayloadSchema.parse(payload)
 
-      if (ctx && !body.customer_ip) {
+      if (ctx !== undefined && body.customer_ip === undefined) {
         body.customer_ip = ctx.request.ip()
       }
 
-      if (this.#config.currency && !body.payment_currency) {
+      if (this.#config.currency !== null && body.payment_currency === undefined) {
         body.payment_currency = this.#config.currency
       }
 
-      /**
-       * Never retried: a retried checkout is a duplicate sale.
-       */
-      return this.#client.post<CheckoutResult>('/checkout', body, { retry: false })
+      return orThrow(
+        await this.#client.post('/checkout', {
+          operation: 'initCheckout',
+          schema: CheckoutResultSchema,
+          body,
+          /** Never retried: a retried checkout is a duplicate sale. */
+          retry: false,
+        })
+      )
     },
   }
 
@@ -138,15 +206,30 @@ export class Chariow {
   |--------------------------------------------------------------------------
   */
 
-  sales = {
-    list: (params: SaleListParams = {}): Promise<Page<SaleSummary>> =>
-      this.#client.get<Page<SaleSummary>>('/sales', { ...params }),
+  /** Completed, failed and abandoned sales. */
+  readonly sales = {
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    list: async (params: SaleListParams = {}): Promise<Page<SaleSummary>> =>
+      orThrow(
+        await this.#client.get('/sales', {
+          operation: 'listSales',
+          schema: pageOf(SaleSummarySchema),
+          query: { ...params },
+        })
+      ),
 
-    get: (saleId: string): Promise<SaleDetail> =>
-      this.#client.get<SaleDetail>(`/sales/${encodeURIComponent(saleId)}`),
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    get: async (saleId: string): Promise<SaleDetail> =>
+      orThrow(
+        await this.#client.get(`/sales/${encodeURIComponent(saleId)}`, {
+          operation: 'getSale',
+          schema: SaleDetailSchema,
+        })
+      ),
 
+    /** Walks every page. @throws {Error} A {@link ChariowApiFailure} when a page fails. */
     all: (params: SaleListParams = {}): AsyncIterable<SaleSummary> =>
-      this.#paginate<SaleSummary>('/sales', params),
+      this.#paginate('/sales', 'listSales', SaleSummarySchema, params),
   }
 
   /*
@@ -155,15 +238,30 @@ export class Chariow {
   |--------------------------------------------------------------------------
   */
 
-  customers = {
-    list: (params: CustomerListParams = {}): Promise<Page<Customer>> =>
-      this.#client.get<Page<Customer>>('/customers', { ...params }),
+  /** People who bought from the store. */
+  readonly customers = {
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    list: async (params: CustomerListParams = {}): Promise<Page<Customer>> =>
+      orThrow(
+        await this.#client.get('/customers', {
+          operation: 'listCustomers',
+          schema: pageOf(CustomerSchema),
+          query: { ...params },
+        })
+      ),
 
-    get: (customerId: string): Promise<Customer> =>
-      this.#client.get<Customer>(`/customers/${encodeURIComponent(customerId)}`),
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    get: async (customerId: string): Promise<Customer> =>
+      orThrow(
+        await this.#client.get(`/customers/${encodeURIComponent(customerId)}`, {
+          operation: 'getCustomer',
+          schema: CustomerSchema,
+        })
+      ),
 
+    /** Walks every page. @throws {Error} A {@link ChariowApiFailure} when a page fails. */
     all: (params: CustomerListParams = {}): AsyncIterable<Customer> =>
-      this.#paginate<Customer>('/customers', params),
+      this.#paginate('/customers', 'listCustomers', CustomerSchema, params),
   }
 
   /*
@@ -172,70 +270,74 @@ export class Chariow {
   |--------------------------------------------------------------------------
   */
 
-  licenses = {
-    list: (params: LicenseListParams = {}): Promise<Page<License>> =>
-      this.#client.get<Page<License>>('/licenses', { ...params }),
+  /** License keys, and the paywall decision built on them. */
+  readonly licenses = {
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    list: async (params: LicenseListParams = {}): Promise<Page<License>> =>
+      orThrow(
+        await this.#client.get('/licenses', {
+          operation: 'listLicenses',
+          schema: pageOf(LicenseSchema),
+          query: { ...params },
+        })
+      ),
 
-    get: (licenseKey: string): Promise<License> =>
-      this.#client.get<License>(`/licenses/${encodeURIComponent(licenseKey)}`),
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    get: async (licenseKey: string): Promise<License> =>
+      orThrow(await this.#fetchLicense(licenseKey)),
 
+    /** Walks every page. @throws {Error} A {@link ChariowApiFailure} when a page fails. */
     all: (params: LicenseListParams = {}): AsyncIterable<License> =>
-      this.#paginate<License>('/licenses', params),
+      this.#paginate('/licenses', 'listLicenses', LicenseSchema, params),
 
     /**
-     * Answers "may this key use my app?" without throwing for a key that does
-     * not exist — a customer mistyping their key is a normal path.
+     * Answers "may this key use my app?".
+     *
+     * A key Chariow does not know resolves to `{ valid: false, reason:
+     * 'not_found' }` rather than throwing — a customer mistyping their key is
+     * a normal path, not an exception.
      *
      * ```ts
      * const check = await chariow.licenses.check(key)
-     * if (!check.valid) return response.forbidden(check.reason)
+     * if (!check.valid) return response.forbidden({ reason: check.reason })
      * ```
      *
      * Successful lookups are cached for `config.licenseCacheTtl` ms, because
      * the API allows only 100 requests per minute.
+     *
+     * @throws {Error} A {@link ChariowApiFailure} for failures other than an
+     * unknown key — a rate limit or an outage must not read as "no licence".
      */
     check: async (licenseKey: string): Promise<LicenseCheck> => {
-      let license = this.#cachedLicense(licenseKey)
+      const cached = this.#cachedLicense(licenseKey)
+      if (cached !== null) {
+        return decideLicenseAccess(cached)
+      }
 
-      if (!license) {
-        try {
-          license = await this.licenses.get(licenseKey)
-          this.#cacheLicense(licenseKey, license)
-        } catch (error) {
-          if (error instanceof ChariowNotFoundError) {
-            return { valid: false, license: null, reason: 'not_found' }
-          }
-          throw error
+      const fetched = await this.#fetchLicense(licenseKey)
+      if (Result.isError(fetched)) {
+        if (fetched.error instanceof ChariowNotFound) {
+          return LICENSE_NOT_FOUND
         }
+        throw fetched.error
       }
 
-      if (license.status === 'revoked') {
-        return { valid: false, license, reason: 'revoked' }
-      }
-
-      if (license.is_expired || license.status === 'expired') {
-        return { valid: false, license, reason: 'expired' }
-      }
-
-      /**
-       * Covers `pending_activation` too: a license nobody has activated yet
-       * does not grant access.
-       */
-      if (license.is_active !== true) {
-        return { valid: false, license, reason: 'inactive' }
-      }
-
-      return { valid: true, license }
+      return decideLicenseAccess(fetched.value)
     },
 
     /**
      * Activates the license on a device. `deviceIdentifier` is any stable
      * string identifying the installation.
+     *
+     * @throws {Error} A {@link ChariowApiFailure} when the call fails.
      */
     activate: async (licenseKey: string, deviceIdentifier?: string): Promise<License> => {
-      const license = await this.#client.post<License>(
-        `/licenses/${encodeURIComponent(licenseKey)}/activate`,
-        deviceIdentifier ? { device_identifier: deviceIdentifier } : {}
+      const license = orThrow(
+        await this.#client.post(`/licenses/${encodeURIComponent(licenseKey)}/activate`, {
+          operation: 'activateLicense',
+          schema: LicenseSchema,
+          body: deviceIdentifier === undefined ? {} : { device_identifier: deviceIdentifier },
+        })
       )
 
       this.#cacheLicense(licenseKey, license)
@@ -244,20 +346,32 @@ export class Chariow {
 
     /**
      * Permanently revokes the license. This cannot be undone.
+     *
+     * @throws {Error} A {@link ChariowApiFailure} when the call fails.
      */
     revoke: async (licenseKey: string): Promise<License> => {
-      const license = await this.#client.post<License>(
-        `/licenses/${encodeURIComponent(licenseKey)}/revoke`
+      const license = orThrow(
+        await this.#client.post(`/licenses/${encodeURIComponent(licenseKey)}/revoke`, {
+          operation: 'revokeLicense',
+          schema: LicenseSchema,
+        })
       )
 
       this.#cacheLicense(licenseKey, license)
       return license
     },
 
-    activations: (licenseKey: string, params: ListParams = {}): Promise<Page<Activation>> =>
-      this.#client.get<Page<Activation>>(
-        `/licenses/${encodeURIComponent(licenseKey)}/activations`,
-        { ...params }
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    activations: async (
+      licenseKey: string,
+      params: ListParams = {}
+    ): Promise<Page<Activation>> =>
+      orThrow(
+        await this.#client.get(`/licenses/${encodeURIComponent(licenseKey)}/activations`, {
+          operation: 'getLicenseActivations',
+          schema: pageOf(ActivationSchema),
+          query: { ...params },
+        })
       ),
   }
 
@@ -267,15 +381,30 @@ export class Chariow {
   |--------------------------------------------------------------------------
   */
 
-  discounts = {
-    list: (params: DiscountListParams = {}): Promise<Page<Discount>> =>
-      this.#client.get<Page<Discount>>('/discounts', { ...params }),
+  /** Discount codes. */
+  readonly discounts = {
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    list: async (params: DiscountListParams = {}): Promise<Page<Discount>> =>
+      orThrow(
+        await this.#client.get('/discounts', {
+          operation: 'listDiscounts',
+          schema: pageOf(DiscountSchema),
+          query: { ...params },
+        })
+      ),
 
-    get: (discountId: string): Promise<Discount> =>
-      this.#client.get<Discount>(`/discounts/${encodeURIComponent(discountId)}`),
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    get: async (discountId: string): Promise<Discount> =>
+      orThrow(
+        await this.#client.get(`/discounts/${encodeURIComponent(discountId)}`, {
+          operation: 'getDiscount',
+          schema: DiscountSchema,
+        })
+      ),
 
+    /** Walks every page. @throws {Error} A {@link ChariowApiFailure} when a page fails. */
     all: (params: DiscountListParams = {}): AsyncIterable<Discount> =>
-      this.#paginate<Discount>('/discounts', params),
+      this.#paginate('/discounts', 'listDiscounts', DiscountSchema, params),
   }
 
   /*
@@ -284,15 +413,30 @@ export class Chariow {
   |--------------------------------------------------------------------------
   */
 
-  affiliates = {
-    get: (affiliateCode: string): Promise<Affiliate> =>
-      this.#client.get<Affiliate>(`/affiliates/${encodeURIComponent(affiliateCode)}`),
+  /** The affiliate programme. */
+  readonly affiliates = {
+    /** @throws {Error} A {@link ChariowApiFailure} when the call fails. */
+    get: async (affiliateCode: string): Promise<Affiliate> =>
+      orThrow(
+        await this.#client.get(`/affiliates/${encodeURIComponent(affiliateCode)}`, {
+          operation: 'getAffiliate',
+          schema: AffiliateSchema,
+        })
+      ),
 
     /**
      * Invites up to 25 people to the affiliate programme.
+     *
+     * @throws {Error} A {@link ChariowApiFailure} when the call fails.
      */
-    invite: (emails: string[]): Promise<AffiliateInvitation[]> =>
-      this.#client.post<AffiliateInvitation[]>('/affiliates/invitations', { emails }),
+    invite: async (emails: ReadonlyArray<string>): Promise<ReadonlyArray<AffiliateInvitation>> =>
+      orThrow(
+        await this.#client.post('/affiliates/invitations', {
+          operation: 'sendAffiliateInvitations',
+          schema: z.array(AffiliateInvitationSchema),
+          body: { emails },
+        })
+      ),
   }
 
   /*
@@ -301,7 +445,8 @@ export class Chariow {
   |--------------------------------------------------------------------------
   */
 
-  pulses: PulsesResource
+  /** Receiving signed webhook deliveries, and reading Pulse configurations. */
+  readonly pulses: PulsesResource
 
   /*
   |--------------------------------------------------------------------------
@@ -311,25 +456,35 @@ export class Chariow {
 
   /**
    * Walks every page of a cursor-paginated endpoint.
+   *
+   * @template S - The schema for a single item.
    */
-  async *#paginate<T>(path: string, params: ListParams & QueryParams): AsyncGenerator<T> {
+  async *#paginate<S extends z.ZodType>(
+    path: string,
+    operation: string,
+    item: S,
+    params: ListParams & QueryParams
+  ): AsyncGenerator<z.infer<S>> {
+    const schema = pageOf(item)
     let cursor: string | undefined = params.cursor
     const seenCursors = new Set<string>()
 
     while (true) {
-      const page: Page<T> = await this.#client.get<Page<T>>(path, { ...params, cursor })
+      const page = orThrow(
+        await this.#client.get(path, { operation, schema, query: { ...params, cursor } })
+      )
 
-      for (const item of page.data ?? []) {
-        yield item
+      for (const value of page.data) {
+        yield value
       }
 
-      const next = page.pagination?.next_cursor
+      const next = page.pagination.next_cursor
 
       /**
        * Stop on a repeated cursor rather than looping forever if the API ever
        * hands back the same page.
        */
-      if (!page.pagination?.has_more || !next || seenCursors.has(next)) {
+      if (!page.pagination.has_more || next === null || seenCursors.has(next)) {
         return
       }
 
@@ -338,17 +493,31 @@ export class Chariow {
     }
   }
 
+  #fetchLicense(licenseKey: string): Promise<Result<License, ChariowApiFailure>> {
+    return this.#client
+      .get(`/licenses/${encodeURIComponent(licenseKey)}`, {
+        operation: 'getLicense',
+        schema: LicenseSchema,
+      })
+      .then((result) => {
+        if (Result.isOk(result)) {
+          this.#cacheLicense(licenseKey, result.value)
+        }
+        return result
+      })
+  }
+
   #cachedLicense(licenseKey: string): License | null {
     if (this.#config.licenseCacheTtl <= 0) {
       return null
     }
 
     const entry = this.#licenseCache.get(licenseKey)
-    if (!entry) {
+    if (entry === undefined) {
       return null
     }
 
-    if (entry.expiresAt <= Date.now()) {
+    if (entry.expiresAt <= this.#config.now()) {
       this.#licenseCache.delete(licenseKey)
       return null
     }
@@ -363,7 +532,7 @@ export class Chariow {
 
     this.#licenseCache.set(licenseKey, {
       license,
-      expiresAt: Date.now() + this.#config.licenseCacheTtl,
+      expiresAt: this.#config.now() + this.#config.licenseCacheTtl,
     })
   }
 }

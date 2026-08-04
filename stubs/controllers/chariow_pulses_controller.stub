@@ -14,8 +14,9 @@ import chariow from '@devalade/adonis-chariow/services/main'
  * The route must be excluded from CSRF protection — add its path to the
  * exceptRoutes option in config/shield.ts if you use @adonisjs/shield.
  *
- * handle() verifies the signature, skips deliveries it has already seen, and
- * answers 200. Handlers are awaited, so anything slow belongs in a queue job.
+ * handle() verifies the signature, parses the payload, skips deliveries it has
+ * already seen, and answers 200. Handlers are awaited, so anything slow belongs
+ * in a queue job.
  */
 export default class ChariowPulsesController {
   async handle(ctx: HttpContext) {

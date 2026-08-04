@@ -5,6 +5,8 @@ import { Socket } from 'node:net'
 import { HttpContextFactory, RequestFactory } from '@adonisjs/core/factories/http'
 import type { HttpContext } from '@adonisjs/core/http'
 
+import type { License } from '../src/schemas.ts'
+
 /**
  * Builds an HttpContext carrying a raw body and headers, the way the
  * bodyparser leaves it for a real JSON request.
@@ -21,6 +23,7 @@ export function contextWithBody(rawBody: string, headers: Record<string, string>
   return new HttpContextFactory().merge({ request }).create()
 }
 
+/** Signs a body the way Chariow signs a Pulse delivery. */
 export function sign(rawBody: string, secret: string): string {
   return 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex')
 }
@@ -51,7 +54,7 @@ export function pulseRequest(options: {
     headers['x-pulse-delivery-id'] = options.deliveryId ?? 'del_001'
   }
 
-  if (options.event) {
+  if (options.event !== undefined) {
     headers['x-pulse-event'] = options.event
   }
 
@@ -83,4 +86,45 @@ export function fakeFetch(
   }) as unknown as typeof globalThis.fetch
 
   return { impl, calls }
+}
+
+/** Wraps a value in the API envelope Chariow sends. */
+export function envelope(data: unknown, message = 'ok') {
+  return { message, data, errors: [] }
+}
+
+/** A clock the test drives, so cache and de-duplication windows are observable. */
+export function testClock(start = 1_000_000) {
+  let current = start
+
+  return {
+    now: () => current,
+    advance(ms: number) {
+      current += ms
+    },
+  }
+}
+
+/** A license that satisfies the response schema, overridable per test. */
+export function license(overrides: Partial<License> = {}): License {
+  return {
+    id: 'lic_1',
+    status: 'active',
+    is_active: true,
+    is_expired: false,
+    can_activate: true,
+    activations: { count: 1, max: 3, remaining: 2 },
+    license: { key: 'ABC-123-XYZ-789', masked_key: 'ABC-***-***-789' },
+    customer: { id: 'cus_1', name: 'Ada', email: 'ada@example.com' },
+    product: { id: 'prd_1', name: 'Pro', slug: 'pro' },
+    certificate_url: null,
+    metadata: null,
+    activated_at: null,
+    expires_at: null,
+    expired_at: null,
+    revoked_at: null,
+    created_at: '2026-01-01T00:00:00+00:00',
+    updated_at: '2026-01-01T00:00:00+00:00',
+    ...overrides,
+  }
 }

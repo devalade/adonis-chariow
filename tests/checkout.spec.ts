@@ -1,8 +1,8 @@
 import { test } from '@japa/runner'
 
 import { Chariow } from '../src/chariow.ts'
-import type { CheckoutPayload } from '../src/types.ts'
-import { contextWithBody, fakeFetch } from './helpers.ts'
+import type { CheckoutPayload } from '../src/schemas.ts'
+import { contextWithBody, envelope, fakeFetch } from './helpers.ts'
 
 const PAYLOAD: CheckoutPayload = {
   product_id: 'prd_abc',
@@ -16,16 +16,12 @@ function okCheckout() {
   return fakeFetch([
     {
       status: 200,
-      body: {
-        message: 'ok',
-        data: {
-          step: 'payment',
-          message: null,
-          purchase: { id: 'sal_1' },
-          payment: { checkout_url: 'https://pay.chariow.com/x', transaction_id: 'txn_1' },
-        },
-        errors: [],
-      },
+      body: envelope({
+        step: 'payment',
+        message: null,
+        purchase: { id: 'sal_1', status: 'awaiting_payment' },
+        payment: { checkout_url: 'https://pay.chariow.com/x', transaction_id: 'txn_1' },
+      }),
     },
   ])
 }
@@ -40,7 +36,7 @@ test.group('checkout', () => {
     const result = await chariow(impl).checkout.create(PAYLOAD)
 
     assert.equal(result.step, 'payment')
-    assert.equal(result.payment.checkout_url, 'https://pay.chariow.com/x')
+    assert.equal(result.payment?.checkout_url, 'https://pay.chariow.com/x')
   })
 
   test('forwards the buyer IP from the HttpContext', async ({ assert }) => {

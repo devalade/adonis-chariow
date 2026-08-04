@@ -3,7 +3,8 @@
 Sell through [Chariow](https://chariow.com) from an AdonisJS app: start a checkout, receive
 signed webhooks, gate your SaaS on a license key.
 
-Built for AdonisJS 7. No runtime dependencies.
+Built for AdonisJS 7. Two runtime dependencies: `zod` for parsing what Chariow sends back, and
+`better-result` for typed failures.
 
 ## Install
 
@@ -28,7 +29,8 @@ node ace chariow:check
 # ✔ Connected to "Ma Boutique" (str_xyz789)
 ```
 
-> The API key is server-side only. Never ship it to a browser or a mobile app.
+> The API key is server-side only. Never ship it to a browser or a mobile app. Internally it is
+> wrapped so it cannot reach a log line, a stack trace or `JSON.stringify` by accident.
 
 ## Sell something
 
@@ -48,10 +50,18 @@ export default class CheckoutController {
       ctx // ← forwards the buyer's IP
     )
 
-    return ctx.response.redirect(result.payment.checkout_url!)
+    if (result.step === 'payment' && result.payment?.checkout_url) {
+      return ctx.response.redirect(result.payment.checkout_url)
+    }
+
+    // A free product, or one this customer already owns.
+    return ctx.response.redirect().toRoute('thank_you')
   }
 }
 ```
+
+`step` is `'payment'`, `'completed'` or `'already_purchased'` — a free product completes without
+a payment URL, so branch rather than assuming one is there.
 
 Passing the `HttpContext` fills `customer_ip` from `ctx.request.ip()`. This endpoint is called
 server to server, so without it Chariow records **your server's** IP and resolves the buyer's
@@ -82,11 +92,15 @@ export default class ChariowPulsesController {
 }
 ```
 
-`handle` verifies the HMAC signature over the raw body, skips deliveries it has already seen,
-runs your handler and answers `200`. An unverified request throws
-`E_CHARIOW_INVALID_SIGNATURE`, which AdonisJS turns into a `401`.
+`handle` verifies the HMAC signature over the raw body, parses the payload, skips deliveries it
+has already seen, runs your handler and answers `200`. An unverified request throws
+`PulseSignatureInvalid`, which AdonisJS renders as a `401`; a body that is not a recognised Pulse
+payload throws `PulsePayloadUnexpected` and renders as `400`.
 
-Two things to know:
+`payload` is typed per event, and the fields Chariow documents on every delivery — `sale`,
+`product`, `customer`, `store` — are non-optional, so there is nothing to guard against.
+
+Three things to know:
 
 - **The signing secret is not your API key.** Each Pulse has its own `whsec_…` value, under
   Automations → Pulses → your Pulse → Overview. Nothing else will ever produce a matching
@@ -178,18 +192,47 @@ can copy an example straight out of the docs and it type-checks.
 
 ## Errors
 
-| Class | Code | Status |
-|---|---|---|
-| `ChariowUnauthorizedError` | `E_CHARIOW_UNAUTHORIZED` | 401 |
-| `ChariowNotFoundError` | `E_CHARIOW_NOT_FOUND` | 404 |
-| `ChariowValidationError` | `E_CHARIOW_VALIDATION` | 422 — has `.errors` |
-| `ChariowRateLimitError` | `E_CHARIOW_RATE_LIMIT` | 429 — has `.retryAfter` |
-| `ChariowInvalidSignatureError` | `E_CHARIOW_INVALID_SIGNATURE` | 401 |
-| `ChariowRequestError` | `E_CHARIOW_REQUEST` | 500 — base class |
+Every failure is a tagged class carrying `_tag`, `status`, `code` and safe structured fields.
+The methods above throw them, and AdonisJS renders the status:
 
-Each message starts with Chariow's own, so the cause is visible without unwrapping anything.
-Reads retry twice on `429`/`5xx`, honouring `Retry-After`. **Checkout is never retried** — a
-retried checkout is a duplicate sale.
+| Class | `_tag` | Status | Extra |
+|---|---|---|---|
+| `ChariowUnauthorized` | `ChariowUnauthorized` | 401 | `responseStatus` |
+| `ChariowNotFound` | `ChariowNotFound` | 404 | |
+| `ChariowValidationFailed` | `ChariowValidationFailed` | 422 | `errors` |
+| `ChariowRateLimited` | `ChariowRateLimited` | 429 | `retryAfter` |
+| `ChariowResponseUnexpected` | `ChariowResponseUnexpected` | 502 | `issues` |
+| `ChariowRequestFailed` | `ChariowRequestFailed` | 500 | `responseStatus`, `cause` |
+| `PulseSignatureInvalid` | `PulseSignatureInvalid` | 401 | `reason` |
+| `PulsePayloadUnexpected` | `PulsePayloadUnexpected` | 400 | `issues` |
+
+Each carries `operation`, so you know which call failed, and each message starts with Chariow's
+own. Reads retry twice on `429`/`5xx`, honouring `Retry-After`. **Checkout is never retried** —
+a retried checkout is a duplicate sale.
+
+### Failures as values
+
+`chariow.client` and `chariow.pulses.verify()` return `Result` from `better-result` instead of
+throwing, for callers who would rather branch:
+
+```ts
+const result = await chariow.client.get('/store', { operation: 'getStore', schema: StoreSchema })
+
+if (Result.isError(result)) {
+  logger.warn({ operation: result.error.operation, tag: result.error._tag }, 'chariow down')
+  return
+}
+```
+
+### Responses are parsed, not trusted
+
+Chariow's replies are parsed before you see them. A response missing a documented field raises
+`ChariowResponseUnexpected` naming the field, rather than handing you an object whose types
+promise more than it contains. Fields Chariow adds that this package does not model yet are
+preserved, so an upgrade on their side does not silently drop data.
+
+Failure `issues` name the field path and the type problem — never the received value, so you can
+log them without leaking a customer's data.
 
 ## Configuration
 
@@ -204,6 +247,7 @@ defineConfig({
   licenseCacheTtl: 60_000, // ms, 0 disables
   dedupe: undefined,      // false, or your own store
   fetch: undefined,       // override for tests
+  now: undefined,         // override the clock for tests
 })
 ```
 
@@ -218,10 +262,18 @@ const chariow = new Chariow({
 })
 ```
 
+Pass `now` to drive the licence cache and the de-duplication window instead of waiting:
+
+```ts
+let clock = 1_000_000
+const chariow = new Chariow({ apiKey, now: () => clock })
+clock += 61_000 // the cached licence has now expired
+```
+
 To test your own Pulse controller, sign a body the way Chariow does:
 
 ```ts
-const raw = JSON.stringify({ event: 'successful.sale', sale: { id: 'sal_1' } })
+const raw = JSON.stringify({ event: 'successful.sale', sale: { id: 'sal_1' }, /* … */ })
 const signature = 'sha256=' + createHmac('sha256', secret).update(raw).digest('hex')
 ```
 
