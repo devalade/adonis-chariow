@@ -56,6 +56,19 @@ export type ChariowConfig = {
   readonly licenseCacheTtl?: number
 
   /**
+   * Days before a licence expires at which a subscription starts reading as
+   * `expiring`, so you can prompt for renewal while access still works.
+   * @default 7
+   */
+  readonly renewalWindowDays?: number
+
+  /**
+   * How long a subscription lookup stays cached, in milliseconds. Set to 0 to
+   * disable. @default 60000
+   */
+  readonly subscriptionCacheTtl?: number
+
+  /**
    * Pulse delivery de-duplication. Defaults to an in-memory store; set to
    * false to disable, or pass your own for cross-process de-duplication.
    */
@@ -77,6 +90,8 @@ export type ResolvedChariowConfig = {
   readonly retries: number
   readonly currency: string | null
   readonly licenseCacheTtl: number
+  readonly renewalWindowDays: number
+  readonly subscriptionCacheTtl: number
   readonly dedupe: false | PulseDedupeStore | null
   readonly fetch: typeof globalThis.fetch | null
   readonly now: Clock
@@ -87,6 +102,8 @@ const DEFAULTS = {
   timeout: 15_000,
   retries: 2,
   licenseCacheTtl: 60_000,
+  renewalWindowDays: 7,
+  subscriptionCacheTtl: 60_000,
 } as const
 
 /**
@@ -143,6 +160,8 @@ export function resolveConfig(config: ChariowConfig): ResolvedChariowConfig {
     retries: config.retries ?? DEFAULTS.retries,
     currency: config.currency ?? null,
     licenseCacheTtl: config.licenseCacheTtl ?? DEFAULTS.licenseCacheTtl,
+    renewalWindowDays: config.renewalWindowDays ?? DEFAULTS.renewalWindowDays,
+    subscriptionCacheTtl: config.subscriptionCacheTtl ?? DEFAULTS.subscriptionCacheTtl,
     dedupe: config.dedupe ?? null,
     fetch: config.fetch ?? null,
     now: config.now ?? Date.now,

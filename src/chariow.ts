@@ -11,6 +11,7 @@ import {
 import { ChariowNotFound, type ChariowApiFailure } from './failures.ts'
 import { decideLicenseAccess, LICENSE_NOT_FOUND, type LicenseCheck } from './license_access.ts'
 import { PulsesResource } from './pulses.ts'
+import { SubscriptionsResource } from './subscriptions_resource.ts'
 import {
   ActivationSchema,
   AffiliateInvitationSchema,
@@ -95,6 +96,10 @@ export class Chariow {
     this.#config = resolveConfig(config)
     this.#client = new ChariowClient(this.#config)
     this.pulses = new PulsesResource(this.#client, this.#config)
+    this.subscriptions = new SubscriptionsResource(this.#client, this.#config, {
+      createCheckout: (payload, ctx) => this.checkout.create(payload, ctx),
+      handlePulse: (ctx, handlers) => this.pulses.handle(ctx, handlers),
+    })
   }
 
   /*
@@ -447,6 +452,18 @@ export class Chariow {
 
   /** Receiving signed webhook deliveries, and reading Pulse configurations. */
   readonly pulses: PulsesResource
+
+  /*
+  |--------------------------------------------------------------------------
+  | Subscriptions
+  |--------------------------------------------------------------------------
+  */
+
+  /**
+   * Recurring access derived from licences. Chariow has no subscription
+   * resource, so this computes the standing rather than fetching it.
+   */
+  readonly subscriptions: SubscriptionsResource
 
   /*
   |--------------------------------------------------------------------------

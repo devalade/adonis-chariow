@@ -1,7 +1,7 @@
 # @devalade/adonis-chariow
 
 Sell through [Chariow](https://chariow.com) from an AdonisJS app: start a checkout, receive
-signed webhooks, gate your SaaS on a license key.
+signed webhooks, gate your SaaS on a license key, and run subscriptions on top of licences.
 
 Built for AdonisJS 7. Two runtime dependencies: `zod` for parsing what Chariow sends back, and
 `better-result` for typed failures.
@@ -160,6 +160,102 @@ await chariow.licenses.activations(licenseKey)
 await chariow.licenses.revoke(licenseKey) // permanent
 ```
 
+## Subscriptions
+
+Chariow has no subscription resource — renewing means buying again, which issues a *new* licence
+rather than extending the old one. This derives the standing from the licences a customer holds,
+so **your app stores no licence state**.
+
+```ts
+const sub = await chariow.subscriptions.forCustomer(user.chariowCustomerId, {
+  product_id: 'prd_pro',
+})
+
+if (!sub.isActive) {
+  return response.forbidden({ status: sub.status })
+}
+
+if (sub.renewalDue) {
+  // still working, but expiring — nudge them
+  await mail.send(new RenewalReminder(sub.daysRemaining))
+}
+```
+
+| `status` | Access | Meaning |
+|---|---|---|
+| `none` | no | No licence for this product |
+| `pending` | no | Issued, not yet activated |
+| `active` | **yes** | Comfortably in date, or lifetime |
+| `expiring` | **yes** | Works, but inside `renewalWindowDays` (default 7) |
+| `expired` | no | Past `expires_at` |
+| `revoked` | no | Revoked, and not renewable |
+
+`isActive` is true for `active` and `expiring` — gate on that, not on `status === 'active'`, or
+you will lock people out a week early. A lifetime licence (`expires_at: null`) is never
+`expiring`, so its holder is never nagged to pay again.
+
+### Looking it up
+
+```ts
+chariow.subscriptions.forCustomer(customerId, { product_id })  // 1 request — prefer this
+chariow.subscriptions.forEmail(email, { product_id })          // 2 requests
+chariow.subscriptions.forLicense(licenseKey)                   // 1 request
+```
+
+Store the Chariow `customer_id` against your user — every sale Pulse carries it as
+`payload.customer.id` — and `forCustomer` costs one request instead of two. Omit `product_id` to
+ask "does this person hold any subscription at all".
+
+`forEmail` resolves the address through Chariow's customer search, which matches name *or* email,
+so it only accepts an exact case-insensitive email match. A near miss reads as `none` rather than
+handing someone another account's subscription.
+
+Lookups are cached for `subscriptionCacheTtl` (default 60s) against the 100 requests/minute
+budget. The *licences* are cached, not the decision, so `daysRemaining` keeps counting down
+inside the window.
+
+### Renewing
+
+```ts
+const result = await chariow.subscriptions.renew(sub, {
+  first_name: user.firstName,
+  last_name: user.lastName,
+  phone: { number: user.phone, country_code: '+229' },
+}, ctx)
+
+return response.redirect(result.payment.checkout_url)
+```
+
+Product and email come from the subscription's licence; you supply what a licence does not carry.
+The customer's full name is deliberately **not** split into first and last — that guess is wrong
+too often to make quietly.
+
+There is no automatic charging: Chariow has no stored-payment or recurring-charge API, so
+renewal is always the customer going through checkout again.
+
+### Lifecycle events
+
+Point the same Pulse endpoint at business language instead of event names:
+
+```ts
+export default class ChariowPulsesController {
+  async handle(ctx: HttpContext) {
+    await chariow.subscriptions.handle(ctx, {
+      onStarted:    async (sub) => access.grant(sub),      // license.issued
+      onActivated:  async (sub) => access.grant(sub),      // license.activated
+      onRenewalDue: async (sub) => mail.remind(sub),       // license.nearing_expiry
+      onLapsed:     async (sub) => access.revoke(sub),     // license.expired
+      onCancelled:  async (sub) => access.revoke(sub),     // license.revoked
+    })
+  }
+}
+```
+
+The delivered payload already carries the whole licence, so `sub` arrives with `daysRemaining`
+and `expiresAt` filled in — no extra API call. Signature verification, payload parsing and
+delivery de-duplication are the same as `pulses.handle`, and sale events reaching the same
+endpoint are answered `200` and ignored.
+
 ## Everything else
 
 ```ts
@@ -245,6 +341,8 @@ defineConfig({
   timeout: 15_000,        // ms
   retries: 2,             // reads only
   licenseCacheTtl: 60_000, // ms, 0 disables
+  renewalWindowDays: 7,    // days before expiry that count as "expiring"
+  subscriptionCacheTtl: 60_000, // ms, 0 disables
   dedupe: undefined,      // false, or your own store
   fetch: undefined,       // override for tests
   now: undefined,         // override the clock for tests
