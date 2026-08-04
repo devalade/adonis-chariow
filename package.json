@@ -4,6 +4,15 @@
   "description": "Chariow integration for AdonisJS — checkout, licenses and signed Pulse webhooks",
   "type": "module",
   "license": "MIT",
+  "author": "devalade <aladecharaf23@gmail.com>",
+  "homepage": "https://github.com/devalade/adonis-chariow#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devalade/adonis-chariow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/devalade/adonis-chariow/issues"
+  },
   "keywords": [
     "adonisjs",
     "adonis",
