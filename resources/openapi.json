@@ -1,0 +1,2916 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Chariow API",
+    "description": "The Chariow API allows you to programmatically interact with your digital product store. Manage products, customers, sales, licenses, and more.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Chariow Support",
+      "url": "https://help.chariow.com",
+      "email": "support@chariow.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.chariow.com/v1",
+      "description": "Production API"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Store",
+      "description": "Store information"
+    },
+    {
+      "name": "Products",
+      "description": "Product management"
+    },
+    {
+      "name": "Checkout",
+      "description": "Checkout and purchase"
+    },
+    {
+      "name": "Sales",
+      "description": "Sales and orders"
+    },
+    {
+      "name": "Customers",
+      "description": "Customer management"
+    },
+    {
+      "name": "Licenses",
+      "description": "License key management"
+    },
+    {
+      "name": "Discounts",
+      "description": "Discount code management"
+    },
+    {
+      "name": "Pulses",
+      "description": "Webhook notification pulses"
+    },
+    {
+      "name": "Affiliates",
+      "description": "Affiliate management"
+    }
+  ],
+  "paths": {
+    "/store": {
+      "get": {
+        "operationId": "getStore",
+        "tags": [
+          "Store"
+        ],
+        "summary": "Get store information",
+        "description": "Retrieves information about the authenticated store.",
+        "responses": {
+          "200": {
+            "description": "Store information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "operationId": "listProducts",
+        "tags": [
+          "Products"
+        ],
+        "summary": "List products",
+        "description": "Retrieves a paginated list of published products.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Search by name or slug",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Filter by category",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filter by product type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "downloadable",
+                "course",
+                "license",
+                "service",
+                "bundle",
+                "coaching"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/products/{productId}": {
+      "get": {
+        "operationId": "getProduct",
+        "tags": [
+          "Products"
+        ],
+        "summary": "Get product",
+        "description": "Retrieves a specific product by public ID or slug.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Product public ID or slug",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/checkout": {
+      "post": {
+        "operationId": "initCheckout",
+        "tags": [
+          "Checkout"
+        ],
+        "summary": "Initiate checkout",
+        "description": "Creates a new checkout session for a product purchase.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/sales": {
+      "get": {
+        "operationId": "listSales",
+        "tags": [
+          "Sales"
+        ],
+        "summary": "List sales",
+        "description": "Retrieves a paginated list of sales.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "awaiting_payment",
+                "completed",
+                "failed",
+                "abandoned",
+                "settled"
+              ]
+            }
+          },
+          {
+            "name": "customer_id",
+            "in": "query",
+            "description": "Filter by customer public ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Search by customer name or email",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "Filter sales from this date (Y-m-d format)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "Filter sales until this date (Y-m-d format)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of sales",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaleListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/sales/{saleId}": {
+      "get": {
+        "operationId": "getSale",
+        "tags": [
+          "Sales"
+        ],
+        "summary": "Get sale",
+        "description": "Retrieves a specific sale by public ID.",
+        "parameters": [
+          {
+            "name": "saleId",
+            "in": "path",
+            "required": true,
+            "description": "Sale public ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sale details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaleDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/customers": {
+      "get": {
+        "operationId": "listCustomers",
+        "tags": [
+          "Customers"
+        ],
+        "summary": "List customers",
+        "description": "Retrieves a paginated list of customers.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Search by name or email",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "Filter customers created from this date (Y-m-d format)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "Filter customers created until this date (Y-m-d format)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of customers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/customers/{customerId}": {
+      "get": {
+        "operationId": "getCustomer",
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Get customer",
+        "description": "Retrieves a specific customer by public ID.",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "description": "Customer public ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/licenses": {
+      "get": {
+        "operationId": "listLicenses",
+        "tags": [
+          "Licenses"
+        ],
+        "summary": "List licenses",
+        "description": "Retrieves a paginated list of issued licenses.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending_activation",
+                "active",
+                "expired",
+                "revoked"
+              ]
+            }
+          },
+          {
+            "name": "customer_id",
+            "in": "query",
+            "description": "Filter by customer public ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "product_id",
+            "in": "query",
+            "description": "Filter by product public ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of licenses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/licenses/{licenseKey}": {
+      "get": {
+        "operationId": "getLicense",
+        "tags": [
+          "Licenses"
+        ],
+        "summary": "Get license",
+        "description": "Retrieves a specific license by its key. Use this endpoint to validate a license by checking the `is_active`, `is_expired`, and `can_activate` fields in the response.",
+        "parameters": [
+          {
+            "name": "licenseKey",
+            "in": "path",
+            "required": true,
+            "description": "The license key",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "License details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/licenses/{licenseKey}/activate": {
+      "post": {
+        "operationId": "activateLicense",
+        "tags": [
+          "Licenses"
+        ],
+        "summary": "Activate license",
+        "description": "Activates a license on a device.",
+        "parameters": [
+          {
+            "name": "licenseKey",
+            "in": "path",
+            "required": true,
+            "description": "The license key",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "device_identifier": {
+                    "type": "string",
+                    "description": "Unique device identifier"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "License activated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/licenses/{licenseKey}/revoke": {
+      "post": {
+        "operationId": "revokeLicense",
+        "tags": [
+          "Licenses"
+        ],
+        "summary": "Revoke license",
+        "description": "Revokes a license permanently.",
+        "parameters": [
+          {
+            "name": "licenseKey",
+            "in": "path",
+            "required": true,
+            "description": "The license key",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "description": "Reason for revocation",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "License revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/licenses/{licenseKey}/activations": {
+      "get": {
+        "operationId": "getLicenseActivations",
+        "tags": [
+          "Licenses"
+        ],
+        "summary": "Get license activations",
+        "description": "Retrieves activation history for a license.",
+        "parameters": [
+          {
+            "name": "licenseKey",
+            "in": "path",
+            "required": true,
+            "description": "The license key",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activation history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivationListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/discounts": {
+      "get": {
+        "operationId": "listDiscounts",
+        "tags": [
+          "Discounts"
+        ],
+        "summary": "List discounts",
+        "description": "Retrieves a paginated list of discount codes.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "expired",
+                "disabled"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Search by code or name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "Filter discounts created from this date (Y-m-d format)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "Filter discounts created until this date (Y-m-d format)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of discounts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscountListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/discounts/{discountId}": {
+      "get": {
+        "operationId": "getDiscount",
+        "tags": [
+          "Discounts"
+        ],
+        "summary": "Get discount",
+        "description": "Retrieves a specific discount by public ID.",
+        "parameters": [
+          {
+            "name": "discountId",
+            "in": "path",
+            "required": true,
+            "description": "Discount public ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Discount details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscountResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/pulses": {
+      "get": {
+        "operationId": "listPulses",
+        "tags": [
+          "Pulses"
+        ],
+        "summary": "List pulses",
+        "description": "Retrieves a paginated list of webhook notification pulses.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Search by URL or trigger events",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of pulses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PulseListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/pulses/{pulseId}": {
+      "get": {
+        "operationId": "getPulse",
+        "tags": [
+          "Pulses"
+        ],
+        "summary": "Get pulse",
+        "description": "Retrieves a specific pulse webhook by public ID.",
+        "parameters": [
+          {
+            "name": "pulseId",
+            "in": "path",
+            "required": true,
+            "description": "Pulse public ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pulse details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PulseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/affiliates/{affiliateCode}": {
+      "get": {
+        "operationId": "getAffiliate",
+        "tags": [
+          "Affiliates"
+        ],
+        "summary": "Get affiliate by code",
+        "description": "Retrieves affiliate information by their unique affiliate code.",
+        "parameters": [
+          {
+            "name": "affiliateCode",
+            "in": "path",
+            "required": true,
+            "description": "The unique affiliate code",
+            "schema": {
+              "type": "string"
+            },
+            "example": "CREATOR123"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Affiliate details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AffiliateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/affiliates/invitations": {
+      "post": {
+        "operationId": "sendAffiliateInvitations",
+        "tags": [
+          "Affiliates"
+        ],
+        "summary": "Send affiliate invitations",
+        "description": "Sends invitation emails to the provided email addresses. Up to 25 emails can be sent in a single request. Existing affiliates and pending invitations are automatically skipped.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendAffiliateInvitationsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Invitations sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendAffiliateInvitationsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key in format: sk_live_keyid_secret"
+      }
+    },
+    "parameters": {
+      "PerPage": {
+        "name": "per_page",
+        "in": "query",
+        "description": "Number of items per page (max 100)",
+        "schema": {
+          "type": "integer",
+          "default": 10,
+          "maximum": 100
+        }
+      },
+      "Cursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Pagination cursor",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Bad request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "Validation failed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ValidationErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {}
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {}
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "next_cursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "prev_cursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Amount": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "number",
+            "description": "Numeric amount (e.g., 99 for $99.00)"
+          },
+          "formatted": {
+            "type": "string",
+            "description": "Human-readable formatted amount with currency symbol"
+          },
+          "short": {
+            "type": "string",
+            "description": "Abbreviated human-readable amount (e.g., 5K, 1.25M)"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 three-letter currency code"
+          }
+        }
+      },
+      "StoreResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Store"
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "Store": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "logo_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "url": {
+            "type": "string"
+          },
+          "social_links": {
+            "type": "object",
+            "properties": {
+              "telegram": {
+                "type": "string",
+                "nullable": true
+              },
+              "instagram": {
+                "type": "string",
+                "nullable": true
+              },
+              "facebook": {
+                "type": "string",
+                "nullable": true
+              },
+              "x": {
+                "type": "string",
+                "nullable": true
+              },
+              "linkedin": {
+                "type": "string",
+                "nullable": true
+              },
+              "youtube": {
+                "type": "string",
+                "nullable": true
+              },
+              "tiktok": {
+                "type": "string",
+                "nullable": true
+              },
+              "discord": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "appearance": {
+            "type": "object",
+            "nullable": true,
+            "description": "Store theme and appearance settings (conditional)"
+          },
+          "stats": {
+            "type": "object",
+            "description": "Store statistics"
+          }
+        }
+      },
+      "ProductListResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              },
+              "pagination": {
+                "$ref": "#/components/schemas/Pagination"
+              }
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "ProductResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Product"
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "downloadable",
+              "course",
+              "license",
+              "service",
+              "bundle",
+              "coaching"
+            ]
+          },
+          "category": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "is_free": {
+            "type": "boolean"
+          },
+          "pictures": {
+            "type": "object",
+            "properties": {
+              "thumbnail": {
+                "type": "string",
+                "nullable": true
+              },
+              "cover": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "pricing": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "price": {
+                "$ref": "#/components/schemas/Amount"
+              },
+              "current_price": {
+                "$ref": "#/components/schemas/Amount"
+              },
+              "effective": {
+                "$ref": "#/components/schemas/Amount"
+              },
+              "minimum_price": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Amount"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "suggested_price": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Amount"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "price_off": {
+                "type": "number",
+                "nullable": true
+              }
+            }
+          },
+          "has_variant_pricing": {
+            "type": "boolean"
+          },
+          "quantity": {
+            "type": "object",
+            "nullable": true,
+            "description": "Stock quantity information (present only for limited quantity products)"
+          },
+          "settings": {
+            "type": "object",
+            "properties": {
+              "is_shipping_address_required": {
+                "type": "boolean"
+              }
+            }
+          },
+          "rating": {
+            "type": "object",
+            "properties": {
+              "average": {
+                "type": "number"
+              },
+              "count": {
+                "type": "integer"
+              }
+            }
+          },
+          "on_sale_until": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "sales_count": {
+            "type": "object",
+            "nullable": true,
+            "description": "Formatted sales count (null if hidden by store owner)"
+          },
+          "seo": {
+            "type": "object",
+            "nullable": true,
+            "description": "SEO settings (conditional)",
+            "properties": {
+              "meta_title": {
+                "type": "string",
+                "nullable": true
+              },
+              "meta_description": {
+                "type": "string",
+                "nullable": true
+              },
+              "meta_keywords": {
+                "type": "string",
+                "nullable": true
+              },
+              "canonical_url": {
+                "type": "string",
+                "nullable": true
+              },
+              "og_image": {
+                "type": "object",
+                "nullable": true
+              }
+            }
+          },
+          "custom_cta_text": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "nullable": true
+              },
+              "label": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "fields": {
+            "type": "array",
+            "nullable": true,
+            "description": "Custom fields defined for the product (conditional)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "order": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "object"
+                },
+                "is_required": {
+                  "type": "boolean"
+                },
+                "placeholder": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "help_text": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "store": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StoreSimplified"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Store information (conditional)"
+          },
+          "bundle": {
+            "type": "object",
+            "nullable": true,
+            "description": "Bundle details (present only for bundle products)",
+            "properties": {
+              "products": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "savings": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "CheckoutRequest": {
+        "type": "object",
+        "required": [
+          "product_id",
+          "email",
+          "first_name",
+          "last_name",
+          "phone"
+        ],
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "description": "Product public ID or slug"
+          },
+          "price_variant_id": {
+            "type": "string",
+            "description": "Optional price variant ID"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255
+          },
+          "first_name": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "last_name": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "phone": {
+            "type": "object",
+            "required": [
+              "number",
+              "country_code"
+            ],
+            "properties": {
+              "number": {
+                "type": "string"
+              },
+              "country_code": {
+                "type": "string",
+                "maxLength": 10
+              }
+            }
+          },
+          "discount_code": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "affiliate_code": {
+            "type": "string",
+            "maxLength": 50,
+            "description": "Affiliate tracking code"
+          },
+          "payment_currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code"
+          },
+          "campaign_id": {
+            "type": "string"
+          },
+          "custom_fields": {
+            "type": "object",
+            "description": "Custom field values for the product"
+          },
+          "redirect_url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "Custom redirect URL after payment"
+          },
+          "custom_metadata": {
+            "type": "object",
+            "description": "Custom key-value metadata (max 10 keys, 255 chars per value). Included in Pulse webhook payloads.",
+            "maxProperties": 10,
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "customer_ip": {
+            "type": "string",
+            "description": "The buyer's IP address (IPv4 or IPv6). This endpoint is called server to server, so the request IP is your own infrastructure. Forward the buyer's IP here so the sale records it and the buyer's country is resolved correctly.",
+            "example": "203.0.113.42"
+          },
+          "shipping": {
+            "type": "object",
+            "description": "Shipping address (required for products with shipping enabled)",
+            "properties": {
+              "address": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "city": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "country": {
+                "type": "string",
+                "description": "ISO 3166-1 alpha-2 country code"
+              },
+              "zip": {
+                "type": "string",
+                "maxLength": 20
+              }
+            }
+          }
+        }
+      },
+      "CheckoutResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "step": {
+                "type": "string",
+                "enum": [
+                  "payment",
+                  "completed",
+                  "already_purchased"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "purchase": {
+                "$ref": "#/components/schemas/SaleSummary"
+              },
+              "payment": {
+                "type": "object",
+                "properties": {
+                  "checkout_url": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "transaction_id": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "SaleListResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SaleSummary"
+                }
+              },
+              "pagination": {
+                "$ref": "#/components/schemas/Pagination"
+              }
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "SaleDetailResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SaleDetail"
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "SaleSummary": {
+        "type": "object",
+        "description": "Sale summary returned in list endpoints (uses SalePublicResource)",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "original_amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "discount_amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "payment": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "$ref": "#/components/schemas/Amount"
+              },
+              "status": {
+                "type": "string"
+              },
+              "exchange_rate": {
+                "$ref": "#/components/schemas/Amount"
+              },
+              "failure_error": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "shipping": {
+            "type": "object",
+            "properties": {
+              "address": {
+                "type": "string",
+                "nullable": true
+              },
+              "city": {
+                "type": "string",
+                "nullable": true
+              },
+              "state": {
+                "type": "string",
+                "nullable": true
+              },
+              "country": {
+                "type": "string",
+                "nullable": true
+              },
+              "zip": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "invoice_download_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "store": {
+            "$ref": "#/components/schemas/StoreSimplified"
+          },
+          "product": {
+            "$ref": "#/components/schemas/ProductSimplified"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/CustomerSimplified"
+          },
+          "discount": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DiscountSimplified"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rate": {
+            "type": "object",
+            "nullable": true,
+            "description": "Customer rating for this sale"
+          },
+          "fulfillment": {
+            "type": "object",
+            "nullable": true,
+            "description": "Fulfillment data (conditional)"
+          }
+        }
+      },
+      "SaleDetail": {
+        "type": "object",
+        "description": "Detailed sale returned in show endpoint (uses SaleResource)",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "object",
+            "nullable": true,
+            "description": "Sales channel information"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "original_amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "discount_amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "settlement": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "$ref": "#/components/schemas/Amount"
+              },
+              "due_at": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "done_at": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "service_fee": {
+                "$ref": "#/components/schemas/Amount"
+              }
+            }
+          },
+          "download": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "last_at": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              }
+            }
+          },
+          "invoice_download_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "payment": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string"
+              },
+              "transaction_id": {
+                "type": "string",
+                "nullable": true
+              },
+              "gateway": {
+                "type": "string",
+                "nullable": true
+              },
+              "method": {
+                "type": "string",
+                "nullable": true
+              },
+              "amount": {
+                "$ref": "#/components/schemas/Amount"
+              },
+              "fee": {
+                "$ref": "#/components/schemas/Amount"
+              },
+              "fee_rate": {
+                "type": "number",
+                "nullable": true
+              },
+              "interchange": {
+                "type": "object",
+                "properties": {
+                  "rate": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "fee": {
+                    "$ref": "#/components/schemas/Amount"
+                  }
+                }
+              },
+              "exchange_rate": {
+                "$ref": "#/components/schemas/Amount"
+              },
+              "failure_error": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "shipping": {
+            "type": "object",
+            "properties": {
+              "address": {
+                "type": "string",
+                "nullable": true
+              },
+              "city": {
+                "type": "string",
+                "nullable": true
+              },
+              "state": {
+                "type": "string",
+                "nullable": true
+              },
+              "country": {
+                "type": "object",
+                "nullable": true
+              },
+              "zip": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "context": {
+            "type": "object",
+            "properties": {
+              "user_agent": {
+                "type": "string",
+                "nullable": true
+              },
+              "ip_address": {
+                "type": "string",
+                "nullable": true
+              },
+              "country": {
+                "type": "object",
+                "nullable": true
+              },
+              "device_type": {
+                "type": "string",
+                "nullable": true
+              },
+              "locale": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "custom_fields_values": {
+            "type": "object",
+            "nullable": true
+          },
+          "campaign": {
+            "type": "object",
+            "nullable": true
+          },
+          "rating": {
+            "type": "object",
+            "nullable": true
+          },
+          "store": {
+            "$ref": "#/components/schemas/StoreSimplified"
+          },
+          "product": {
+            "$ref": "#/components/schemas/ProductSimplified"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/CustomerSimplified"
+          },
+          "discount": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DiscountSimplified"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "store_affiliate": {
+            "type": "object",
+            "nullable": true,
+            "description": "Associated affiliate (conditional)"
+          },
+          "affiliate_commission": {
+            "type": "object",
+            "nullable": true,
+            "description": "Affiliate commission details (conditional)"
+          },
+          "is_reconciled": {
+            "type": "boolean"
+          },
+          "last_reconciled_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "failed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "awaiting_payment_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "abandoned_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CustomerListResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              },
+              "pagination": {
+                "$ref": "#/components/schemas/Pagination"
+              }
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "CustomerResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Customer"
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "Customer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "object",
+            "properties": {
+              "number": {
+                "type": "string"
+              },
+              "country_code": {
+                "type": "string"
+              }
+            }
+          },
+          "store": {
+            "$ref": "#/components/schemas/StoreSimplified"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LicenseListResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/License"
+                }
+              },
+              "pagination": {
+                "$ref": "#/components/schemas/Pagination"
+              }
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "LicenseResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/License"
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "License": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "License public ID (e.g., lic_abc123)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_activation",
+              "active",
+              "expired",
+              "revoked"
+            ],
+            "description": "Current license status"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/CustomerSimplified"
+          },
+          "product": {
+            "$ref": "#/components/schemas/ProductSimplified"
+          },
+          "license": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "description": "Full license key (e.g., ABC-123-XYZ-789)"
+              },
+              "masked_key": {
+                "type": "string",
+                "description": "Masked license key for display (e.g., ABC-***-***-789)"
+              }
+            }
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Whether the license is currently active and usable"
+          },
+          "is_expired": {
+            "type": "boolean",
+            "description": "Whether the license has expired"
+          },
+          "can_activate": {
+            "type": "boolean",
+            "description": "Whether the license can be activated (has remaining slots)"
+          },
+          "activations": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "description": "Current number of activations"
+              },
+              "max": {
+                "type": "integer",
+                "description": "Maximum allowed activations"
+              },
+              "remaining": {
+                "type": "integer",
+                "description": "Remaining activation slots"
+              }
+            }
+          },
+          "certificate_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "URL to download the license certificate"
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "description": "Custom metadata stored with the license"
+          },
+          "activated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the license was first activated"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the license will expire (null for lifetime)"
+          },
+          "expired_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the license expired"
+          },
+          "revoked_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the license was revoked"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CustomerSimplified": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Customer public ID"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        }
+      },
+      "ActivationListResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Activation"
+                }
+              },
+              "pagination": {
+                "$ref": "#/components/schemas/Pagination"
+              }
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "Activation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "activated_by": {
+            "type": "object",
+            "properties": {
+              "ip": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "string"
+                  },
+                  "country": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "user_agent": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                  "browser": {
+                    "type": "string"
+                  },
+                  "platform": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  }
+                }
+              },
+              "device": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true
+          },
+          "activated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DiscountListResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Discount"
+                }
+              },
+              "pagination": {
+                "$ref": "#/components/schemas/Pagination"
+              }
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "DiscountResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Discount"
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "Discount": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "percentage",
+              "fixed"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "value_off": {
+            "type": "object",
+            "properties": {
+              "raw": {
+                "type": "number"
+              },
+              "formatted": {
+                "type": "string"
+              }
+            }
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductSimplified"
+            },
+            "description": "Products this discount applies to"
+          },
+          "store": {
+            "$ref": "#/components/schemas/StoreSimplified"
+          },
+          "customer_email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Restricted to this customer email (if set)"
+          },
+          "usage_count": {
+            "type": "integer"
+          },
+          "usage_limit": {
+            "type": "integer",
+            "nullable": true
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "is_auto_generated": {
+            "type": "boolean",
+            "description": "Whether the discount was auto-generated by the system"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PulseListResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Pulse"
+                }
+              },
+              "pagination": {
+                "$ref": "#/components/schemas/Pagination"
+              }
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "PulseResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Pulse"
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "Pulse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "is_enabled": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "description": "Source of the pulse (e.g., manual, zapier, make, n8n)"
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PulseTrigger"
+            }
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductSimplified"
+            }
+          },
+          "store": {
+            "$ref": "#/components/schemas/StoreSimplified"
+          },
+          "is_editable": {
+            "type": "boolean",
+            "description": "Whether the pulse can be edited by the user"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PulseTrigger": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "all",
+              "successful_sale",
+              "abandoned_sale",
+              "failed_sale",
+              "license_activated",
+              "license_expired",
+              "license_issued",
+              "license_nearing_expiry",
+              "license_revoked",
+              "affiliate_joined"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductSimplified": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
+      "StoreSimplified": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "DiscountSimplified": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "AffiliateResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Affiliate"
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "Affiliate": {
+        "type": "object",
+        "description": "Store affiliate with nested account structure",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Store affiliate public ID (e.g., saff_xyz789)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "suspended"
+            ]
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "description": "How the affiliate joined (e.g., invitation, network)"
+          },
+          "total_visits": {
+            "type": "integer"
+          },
+          "total_sales": {
+            "type": "integer"
+          },
+          "total_earnings": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "first_visit_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "last_visit_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "suspended_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "suspended_reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "account": {
+            "type": "object",
+            "nullable": true,
+            "description": "Affiliate account details (conditional)",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "pseudo": {
+                "type": "string",
+                "nullable": true
+              },
+              "country": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              },
+              "status": {
+                "type": "string"
+              },
+              "user": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  }
+                }
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "store": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StoreSimplified"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Store information (conditional)"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SendAffiliateInvitationsRequest": {
+        "type": "object",
+        "required": [
+          "emails"
+        ],
+        "properties": {
+          "emails": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email"
+            },
+            "minItems": 1,
+            "maxItems": 25,
+            "description": "Array of email addresses to invite (1-25 items)"
+          }
+        }
+      },
+      "SendAffiliateInvitationsResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AffiliateInvitation"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "AffiliateInvitation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Invitation public ID (e.g., affinv_abc123xyz)"
+          },
+          "email": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "expired",
+              "cancelled"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "invited_by": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "accepted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {}
+          },
+          "errors": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      }
+    }
+  }
+}

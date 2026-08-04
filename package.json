@@ -1,0 +1,54 @@
+{
+  "name": "@devalade/adonis-chariow",
+  "version": "0.1.0",
+  "description": "Chariow integration for AdonisJS — checkout, licenses and signed Pulse webhooks",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "adonisjs",
+    "adonis",
+    "chariow",
+    "payments",
+    "checkout",
+    "licenses",
+    "webhooks"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build",
+    "!build/bin",
+    "!build/tests"
+  ],
+  "exports": {
+    ".": "./build/index.js",
+    "./chariow_provider": "./build/providers/chariow_provider.js",
+    "./services/main": "./build/services/main.js",
+    "./types": "./build/src/types.js",
+    "./commands": "./build/commands/main.js"
+  },
+  "scripts": {
+    "build": "npm run clean && tsc",
+    "clean": "rm -rf build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import=@poppinss/ts-exec bin/test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@adonisjs/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@adonisjs/assembler": "^8.4.0",
+    "@adonisjs/core": "^7.3.3",
+    "@adonisjs/tsconfig": "^2.0.0",
+    "@japa/assert": "^4.2.0",
+    "@japa/runner": "^5.3.0",
+    "@poppinss/ts-exec": "^1.4.4",
+    "@types/node": "~25.9.1",
+    "typescript": "~6.0.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
