@@ -1,0 +1,27 @@
+{{{
+  exports({ to: app.configPath('chariow.ts') })
+}}}
+import env from '#start/env'
+import { defineConfig } from '@devalade/adonis-chariow'
+
+export default defineConfig({
+  /**
+   * Store API key from https://app.chariow.com/settings/api
+   * Server-side only — never expose it to a browser or a mobile app.
+   */
+  apiKey: env.get('CHARIOW_API_KEY'),
+
+  /**
+   * Pulse signing secret (whsec_…), found under
+   * Automations → Pulses → your Pulse → Overview.
+   *
+   * This is NOT your API key. Pass a record keyed by Pulse ID when several
+   * Pulses post to the same endpoint.
+   */
+  pulseSecret: env.get('CHARIOW_PULSE_SECRET'),
+
+  /**
+   * Default payment currency for checkouts that do not set one.
+   */
+  currency: 'XOF',
+})

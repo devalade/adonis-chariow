@@ -1,0 +1,37 @@
+{{{
+  exports({ to: app.httpControllersPath('chariow_pulses_controller.ts') })
+}}}
+import type { HttpContext } from '@adonisjs/core/http'
+import chariow from '@devalade/adonis-chariow/services/main'
+
+/**
+ * Receives Pulse deliveries from Chariow.
+ *
+ * Register it in start/routes.ts:
+ *
+ *   router.post('/webhooks/chariow', [ChariowPulsesController])
+ *
+ * The route must be excluded from CSRF protection — add its path to the
+ * exceptRoutes option in config/shield.ts if you use @adonisjs/shield.
+ *
+ * handle() verifies the signature, skips deliveries it has already seen, and
+ * answers 200. Handlers are awaited, so anything slow belongs in a queue job.
+ */
+export default class ChariowPulsesController {
+  async handle(ctx: HttpContext) {
+    await chariow.pulses.handle(ctx, {
+      'successful.sale': async (payload) => {
+        ctx.logger.info(
+          { sale: payload.sale.id, email: payload.customer.email },
+          'chariow: sale completed'
+        )
+        // Grant access to the buyer here.
+      },
+
+      'license.revoked': async (payload) => {
+        ctx.logger.info({ license: payload.license.id }, 'chariow: license revoked')
+        // Revoke access here.
+      },
+    })
+  }
+}

@@ -29,10 +29,13 @@
     "./commands": "./build/commands/main.js"
   },
   "scripts": {
-    "build": "npm run clean && tsc",
+    "build": "npm run clean && tsc && npm run copy:stubs && npm run index:commands",
+    "copy:stubs": "copyfiles \"stubs/**/*.stub\" build",
+    "index:commands": "adonis-kit index build/commands",
     "clean": "rm -rf build",
     "typecheck": "tsc --noEmit",
     "test": "node --import=@poppinss/ts-exec bin/test.ts",
+    "spec:diff": "node --import=@poppinss/ts-exec bin/spec_diff.ts",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
@@ -46,6 +49,7 @@
     "@japa/runner": "^5.3.0",
     "@poppinss/ts-exec": "^1.4.4",
     "@types/node": "~25.9.1",
+    "copyfiles": "^2.4.1",
     "typescript": "~6.0.3"
   },
   "publishConfig": {
