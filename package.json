@@ -1,6 +1,6 @@
 {
   "name": "@devalade/adonis-chariow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Chariow integration for AdonisJS — checkout, licenses and signed Pulse webhooks",
   "type": "module",
   "license": "MIT",
